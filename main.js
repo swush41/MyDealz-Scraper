@@ -3,61 +3,53 @@ const fs = require('fs');
 const {GoogleSpreadsheet} = require('google-spreadsheet');
 const credentials = require('./credentials_gsheet.json');
 require('dotenv').config();
+const schedule = require('node-schedule');
 
 function scrapeItems(){
     return Array.from(document.querySelectorAll('.height--all-full .aGrid #toc-target-deals >div.listLayout-main [id^="thread_"] '), element => {
         const model = element.querySelector('div.threadGrid >div.threadGrid-title .thread-title >a')
-        const url =  element.id
-        const platform = element.querySelector('div.threadGrid >div.threadGrid-title >span >a')
+        const link =  element.id
+        const lead_Anbieter = element.querySelector('div.threadGrid >div.threadGrid-title >span >a')
+        const erstplatzierung_Anbieter = element.querySelector('div.threadGrid >div.threadGrid-title >span >a')
         const rate = element.querySelector('div.threadGrid >div.threadGrid-title >span >span >span')
         const grad = element.querySelector('div.threadGrid >div.threadGrid-headerMeta >div.space--b-2 >div.flex')
-        const update = element.querySelector('div.threadGrid >div.threadGrid-headerMeta .text--color-greyShade')
+        const last_update = element.querySelector('div.threadGrid >div.threadGrid-headerMeta .text--color-greyShade')
+        const datum = "=today()"
 
         return {
             model :  model ? model.innerText : '-',
-            url : url ? "mydealz.de/" + url.slice(7) : '-',
-            platform : platform ? platform.innerText : '-', 
+            link : link ? "mydealz.de/" + link.slice(7) : '-',
+            lead_Anbieter : lead_Anbieter ? lead_Anbieter.innerText : '-', 
+            erstplatzierung_Anbieter : erstplatzierung_Anbieter ? erstplatzierung_Anbieter.innerText : '-', 
             rate: rate ? rate.innerText : '-',
             grad : grad ? grad.innerText : '-',
-            update : update ? update.innerText : '-'
-        }
+            last_update : last_update ? last_update.innerText : '-',
+            datum : datum
+        }   
     })
 };
 
-(async () => {
+
+(async function ScrapeWebpage() {
     const browser = await puppeteer.launch(
         {
             headless: false,
             args: ['--no-sandbox', '--disable-setuid-sandbox']
         }
     );
-    
+
     const page = await browser.newPage();
     page.setViewport({ width: 1280, height: 926 })
     await page.goto('https://www.mydealz.de/gruppe/auto-leasing-hot');
     await page.waitForFunction(`document.body.scrollHeight`)
     const items = await page.evaluate(scrapeItems);
-    
-    convertDataArrayToCSV ('./data.csv', items)
     await browser.close();
     console.log(items)
-    PasteGoogleSheet(items)
+    PasteinDB(items)
   })();
 
 
-  function convertDataArrayToCSV (fileName, data) {
-
-	const header = Object.keys(data[0])
-	let csv = data.map(row => header
-		.map(fieldName => row[fieldName] === null ? '' : row[fieldName])
-		.join(';'))
-	csv.unshift(header.join(';'))
-	csv = csv.join('\r\n')
-	fs.writeFileSync(fileName, csv)	
-
-}  
-
-async function PasteGoogleSheet(data){
+/* async function PasteGoogleSheet(data){
 	const doc = new GoogleSpreadsheet(process.env.SHEET_ID); // set spreadsheet id
 	await doc.useServiceAccountAuth(credentials);
 	await doc.loadInfo();
@@ -71,6 +63,22 @@ async function PasteGoogleSheet(data){
         "grad",
         "update"
     ]);
-    await sheet.addRows(data)
+    await sheet.addRows(data[0])
 
+}  */
+
+async function PasteinDB (data){
+    const doc = new GoogleSpreadsheet(process.env.SHEET_ID); // set spreadsheet id
+	await doc.useServiceAccountAuth(credentials);
+	await doc.loadInfo();
+    const sheet = await doc.sheetsByTitle['Kopie von DB'];
+    const rows = await sheet.getRows();
+    const length = rows.length-1;
+
+    if (data[0].model == rows[length].model){
+        return ;
+    }
+    else {
+        await sheet.addRow(data[0])
+    } 
 }
