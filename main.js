@@ -1,9 +1,8 @@
 const puppeteer = require('puppeteer');
-const fs = require('fs');
 const {GoogleSpreadsheet} = require('google-spreadsheet');
 const credentials = require('./credentials_gsheet.json');
 require('dotenv').config();
-const schedule = require('node-schedule');
+
 
 function scrapeItems(){
     return Array.from(document.querySelectorAll('.height--all-full .aGrid #toc-target-deals >div.listLayout-main [id^="thread_"] '), element => {
@@ -45,11 +44,13 @@ function scrapeItems(){
     const items = await page.evaluate(scrapeItems);
     await browser.close();
     console.log(items)
+    console.log(items.length)
+    PasteGoogleSheet(items)
     PasteinDB(items)
   })();
 
 
-/* async function PasteGoogleSheet(data){
+ async function PasteGoogleSheet(data){
 	const doc = new GoogleSpreadsheet(process.env.SHEET_ID); // set spreadsheet id
 	await doc.useServiceAccountAuth(credentials);
 	await doc.loadInfo();
@@ -57,15 +58,17 @@ function scrapeItems(){
     await sheet.clear();
     await sheet.setHeaderRow([
         "model",
-        "url",
-        "platform",
+        "link",
+        "lead_Anbieter",
+        "erstplatzierung_Anbieter",
         "rate",
         "grad",
-        "update"
+        "last_update",
+        "datum"
     ]);
-    await sheet.addRows(data[0])
+    await sheet.addRows(data)
 
-}  */
+}  
 
 async function PasteinDB (data){
     const doc = new GoogleSpreadsheet(process.env.SHEET_ID); // set spreadsheet id
@@ -73,12 +76,19 @@ async function PasteinDB (data){
 	await doc.loadInfo();
     const sheet = await doc.sheetsByTitle['Kopie von DB'];
     const rows = await sheet.getRows();
-    const length = rows.length-1;
+    const length = rows.length
+ 
+    // update grad cells
+    for (var i = 0 ; i < length ; i++){
+        let index = data.map( a => a.link).indexOf(rows[i].link) // rows of dash
+            if( index > -1 ){
+                rows[i].grad = data[index].grad;
+                await rows[i].save();
+                data.splice(index,1); // kick out the already existing cells
+            };
+    };
+    console.log(data.length)
+    await sheet.addRows(data)
 
-    if (data[0].model == rows[length].model){
-        return ;
-    }
-    else {
-        await sheet.addRow(data[0])
-    } 
+         
 }
