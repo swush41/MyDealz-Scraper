@@ -4,6 +4,7 @@
   "description": "\"# MyDealz-Scraper\"",
   "main": "main.js",
   "scripts": {
+    "start": "node main.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -15,5 +16,13 @@
   "bugs": {
     "url": "https://github.com/swush41/MyDealz-Scraper/issues"
   },
-  "homepage": "https://github.com/swush41/MyDealz-Scraper#readme"
+  "homepage": "https://github.com/swush41/MyDealz-Scraper#readme",
+  "dependencies": {
+    "apify": "^1.1.2",
+    "axios": "^0.21.1",
+    "dotenv": "^8.2.0",
+    "google-spreadsheet": "^3.1.15",
+    "puppeteer": "^8.0.0"
+  },
+  "devDependencies": {}
 }

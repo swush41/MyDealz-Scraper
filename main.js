@@ -1,6 +1,7 @@
 const puppeteer = require('puppeteer');
 const {GoogleSpreadsheet} = require('google-spreadsheet');
 const credentials = require('./credentials_gsheet.json');
+const axios = require('axios');
 require('dotenv').config();
 
 
@@ -12,7 +13,7 @@ function scrapeItems(){
         const erstplatzierung_Anbieter = element.querySelector('div.threadGrid >div.threadGrid-title >span >a')
         const rate = element.querySelector('div.threadGrid >div.threadGrid-title >span >span >span')
         const grad = element.querySelector('div.threadGrid >div.threadGrid-headerMeta >div.space--b-2 >div.flex')
-        const last_update = element.querySelector('div.threadGrid >div.threadGrid-headerMeta .text--color-greyShade')
+        const online_seit = element.querySelector('div.threadGrid >div.threadGrid-headerMeta .text--color-greyShade')
         const datum = "=today()"
 
         return {
@@ -22,7 +23,7 @@ function scrapeItems(){
             erstplatzierung_Anbieter : erstplatzierung_Anbieter ? erstplatzierung_Anbieter.innerText : '-', 
             rate: rate ? rate.innerText : '-',
             grad : grad ? grad.innerText : '-',
-            last_update : last_update ? last_update.innerText : '-',
+            online_seit : online_seit ? online_seit.innerText : '-',
             datum : datum
         }   
     })
@@ -38,15 +39,16 @@ function scrapeItems(){
     );
 
     const page = await browser.newPage();
-    page.setViewport({ width: 1280, height: 926 })
+   // page.setViewport({ width: 1280, height: 926 })
     await page.goto('https://www.mydealz.de/gruppe/auto-leasing-hot');
     await page.waitForFunction(`document.body.scrollHeight`)
     const items = await page.evaluate(scrapeItems);
     await browser.close();
-    console.log(items)
+    console.log(items.reverse())
+    console.log("new scraped: ")
     console.log(items.length)
-    PasteGoogleSheet(items)
-    PasteinDB(items)
+    PasteGoogleSheet(items.reverse())
+    PasteinDB(items.reverse())
   })();
 
 
@@ -63,7 +65,7 @@ function scrapeItems(){
         "erstplatzierung_Anbieter",
         "rate",
         "grad",
-        "last_update",
+        "online_seit",
         "datum"
     ]);
     await sheet.addRows(data)
@@ -87,8 +89,56 @@ async function PasteinDB (data){
                 data.splice(index,1); // kick out the already existing cells
             };
     };
+    console.log("new added: ")
     console.log(data.length)
     await sheet.addRows(data)
 
-         
-}
+    // send a slack message if new entry comes in
+        if (data.length>0){
+            const message = `${data[data.length-1].model}`
+            const link = `${data[data.length-1].link}`
+            postToSlack(message,link)
+        };  
+};
+
+async function postToSlack(message,link) {
+
+    const url = process.env.SLACK_URL;
+
+    await axios.post(
+        url,
+        {
+        'channel' : '#mapping-alarm',
+        'username' : 'New Deal Alarm',
+        'icon_url' : 'https://mein.handy-alarm.com/images/logo.png',
+        'blocks':[
+                  {
+            "type": "section",
+            "text":{
+                "type": "mrkdwn",
+                "text": "<!channel> New entry just dropped: ",
+                },
+            },
+            {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "``` " + message + "\n```"
+                    }
+           },
+           {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "``` Link: " + link + "\n```"
+                    }
+           }
+        ],
+        'attachments': [{
+            'text': "Sheet: " + process.env.SLACK_SHEET_ID +"\n"
+               }]
+        })
+        .catch(function (error) {
+            console.log(error);
+        });
+}; 
