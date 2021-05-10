@@ -28,5 +28,5 @@ COPY . ./
 
 # Install puppeteer so it's available in the container.
 
-CMD npm start
+#CMD npm start
 
