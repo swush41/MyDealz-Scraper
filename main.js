@@ -3,6 +3,10 @@ const {GoogleSpreadsheet} = require('google-spreadsheet');
 const credentials = require('./credentials_gsheet.json');
 const axios = require('axios');
 require('dotenv').config();
+const schedule = require('node-schedule');
+
+const rule = new schedule.RecurrenceRule();
+rule.minute = 41;
 
 
 function scrapeItems(){
@@ -22,7 +26,7 @@ function scrapeItems(){
             lead_Anbieter : lead_Anbieter ? lead_Anbieter.innerText : '-', 
             erstplatzierung_Anbieter : erstplatzierung_Anbieter ? erstplatzierung_Anbieter.innerText : '-', 
             rate: rate ? rate.innerText : '-',
-            grad : grad ? grad.innerText : '-',
+            grad : grad ? grad.innerText.replace("°","").replace("\nAbgelaufen","")  : '-',
             online_seit : online_seit ? online_seit.innerText : '-',
             datum : datum
         }   
@@ -30,53 +34,59 @@ function scrapeItems(){
 };
 
 
-(async function ScrapeWebpage() {
-    const browser = await puppeteer.launch(
-        {
-            headless: false,
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
-        }
-    );
+const job = schedule.scheduleJob(rule, function(){
+    
 
-    const page = await browser.newPage();
-   // page.setViewport({ width: 1280, height: 926 })
-    await page.goto('https://www.mydealz.de/gruppe/auto-leasing-hot');
-    await page.waitForFunction(`document.body.scrollHeight`)
-    const items = await page.evaluate(scrapeItems);
-    await browser.close();
-    console.log(items.reverse())
-    console.log("new scraped: ")
-    console.log(items.length)
-    PasteGoogleSheet(items.reverse())
-    PasteinDB(items.reverse())
-  })();
+        (async function ScrapeWebpage() {
+            const browser = await puppeteer.launch(
+            {       
+                //   executablePath: 'google-chrome-stable',
+                //   headless: false,
+                    args: ['--no-sandbox','--disable-setuid-sandbox']
+                });
 
 
- async function PasteGoogleSheet(data){
-	const doc = new GoogleSpreadsheet(process.env.SHEET_ID); // set spreadsheet id
-	await doc.useServiceAccountAuth(credentials);
-	await doc.loadInfo();
-    const sheet = await doc.sheetsByTitle['Scraper Entries'];
-    await sheet.clear();
-    await sheet.setHeaderRow([
-        "model",
-        "link",
-        "lead_Anbieter",
-        "erstplatzierung_Anbieter",
-        "rate",
-        "grad",
-        "online_seit",
-        "datum"
-    ]);
-    await sheet.addRows(data)
+            const page = await browser.newPage();
+            page.setViewport({ width: 1280, height: 926 })
+            await page.goto('https://www.mydealz.de/gruppe/auto-leasing');
+            await page.waitForFunction(`document.body.scrollHeight`)
+            const items = await page.evaluate(scrapeItems);
+            await browser.close();
+            console.log(items.reverse())
+            console.log("new scraped: ")
+            console.log(items.length)
+            PasteGoogleSheet(items.reverse())
+            PasteinDB(items.reverse())
+        })();
 
-}  
+
+        async function PasteGoogleSheet(data){
+            const doc = new GoogleSpreadsheet(process.env.SHEET_ID); // set spreadsheet id
+            await doc.useServiceAccountAuth(credentials);
+            await doc.loadInfo();
+            const sheet = await doc.sheetsByTitle['Scraper Entries'];
+            await sheet.clear();
+            await sheet.setHeaderRow([
+                "model",
+                "link",
+                "lead_Anbieter",
+                "erstplatzierung_Anbieter",
+                "rate",
+                "grad",
+                "online_seit",
+                "datum"
+            ]);
+            await sheet.addRows(data)
+
+        }  
+
+});
 
 async function PasteinDB (data){
     const doc = new GoogleSpreadsheet(process.env.SHEET_ID); // set spreadsheet id
 	await doc.useServiceAccountAuth(credentials);
 	await doc.loadInfo();
-    const sheet = await doc.sheetsByTitle['Kopie von DB'];
+    const sheet = await doc.sheetsByTitle['DB'];
     const rows = await sheet.getRows();
     const length = rows.length
  
@@ -87,8 +97,8 @@ async function PasteinDB (data){
                 rows[i].grad = data[index].grad;
                 await rows[i].save();
                 data.splice(index,1); // kick out the already existing cells
-            };
-    };
+            }
+    }
     console.log("new added: ")
     console.log(data.length)
     await sheet.addRows(data)
@@ -98,8 +108,8 @@ async function PasteinDB (data){
             const message = `${data[data.length-1].model}`
             const link = `${data[data.length-1].link}`
             postToSlack(message,link)
-        };  
-};
+        }
+}
 
 async function postToSlack(message,link) {
 
@@ -108,7 +118,7 @@ async function postToSlack(message,link) {
     await axios.post(
         url,
         {
-        'channel' : '#mapping-alarm',
+        'channel' : '#mydealz_marketing',
         'username' : 'New Deal Alarm',
         'icon_url' : 'https://mein.handy-alarm.com/images/logo.png',
         'blocks':[
