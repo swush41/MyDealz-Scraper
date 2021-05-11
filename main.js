@@ -5,8 +5,8 @@ const axios = require('axios');
 require('dotenv').config();
 const schedule = require('node-schedule');
 
-const rule = new schedule.RecurrenceRule();
-rule.minute = 41;
+//const rule = new schedule.RecurrenceRule();
+//rule.minute = 30;
 
 
 function scrapeItems(){
@@ -34,7 +34,7 @@ function scrapeItems(){
 };
 
 
-const job = schedule.scheduleJob(rule, function(){
+//const job = schedule.scheduleJob(rule, function(){
     
 
         (async function ScrapeWebpage() {
@@ -80,7 +80,7 @@ const job = schedule.scheduleJob(rule, function(){
 
         }  
 
-});
+//});
 
 async function PasteinDB (data){
     const doc = new GoogleSpreadsheet(process.env.SHEET_ID); // set spreadsheet id
